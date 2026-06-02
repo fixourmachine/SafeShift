@@ -1314,7 +1314,18 @@ function showToast(msg) {
 // ============================================================
 
 function init() {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    
+    // Listen for controlling service worker changes (i.e. a new SW activated)
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing && STATE.phase === 'SETUP') {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
+  }
 
   // Initialize day/night mode theme
   initTheme();
