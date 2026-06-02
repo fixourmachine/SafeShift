@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#080c18" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="SafeShift" />
+  <meta name="description" content="NICU handover timing, cognitive aid and QI data collection tool. Tracks section laptimes, patient counts, and handover tips for neonatal shift handover." />
+
+  <title>SafeShift — NICU Handover</title>
+
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <link rel="icon" type="image/png" href="./icon-192.png" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       SETUP SCREEN
+  ============================================================ -->
+  <div id="setup-screen" class="screen active" role="main" aria-label="Handover setup">
+
+    <div class="top-bar">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">🛡️</div>
+        <div>
+          <div class="brand-name">SafeShift</div>
+          <div class="brand-sub">NICU Handover</div>
+        </div>
+      </div>
+      <button class="theme-toggle-btn" id="theme-toggle-setup" aria-label="Toggle day/night mode">
+        <span class="theme-icon">☀️</span>
+      </button>
+    </div>
+
+    <!-- PWA install banner -->
+    <div id="install-banner" style="display:none; align-items:center; gap:12px; padding:10px 20px; background:var(--bg-card); border-bottom:1px solid var(--border);">
+      <span style="font-size:0.82rem; color:var(--text-sub); flex:1;">📲 Install SafeShift for offline use on your home screen</span>
+      <button id="btn-install" style="font-size:0.8rem; font-weight:700; color:var(--primary); padding:6px 14px; border:1px solid var(--primary-dim); border-radius:20px; background:var(--primary-dim);">Install</button>
+      <button id="btn-install-dismiss" style="font-size:0.8rem; color:var(--text-dim);">✕</button>
+    </div>
+
+    <div class="setup-content">
+
+      <div class="setup-hero">
+        <h1>Set up handover</h1>
+        <p>Select shift and patient counts, then start the timer</p>
+      </div>
+
+      <!-- Shift & date -->
+      <div class="setup-card">
+        <div class="setup-card-label">Shift</div>
+        <div class="shift-toggle" role="group" aria-label="Select shift">
+          <button class="shift-btn active" data-shift="AM" id="btn-shift-am" aria-pressed="true">
+            ☀️ Morning (AM)
+          </button>
+          <button class="shift-btn" data-shift="PM" id="btn-shift-pm" aria-pressed="false">
+            🌙 Evening (PM)
+          </button>
+        </div>
+        <div class="date-display" style="margin-top:14px; gap:10px;">
+          <span style="font-size:0.8rem; color:var(--text-dim);">Date:</span>
+          <input type="date" id="handover-date" aria-label="Handover date" />
+          <span id="setup-shift-label" style="font-size:0.78rem; color:var(--text-dim); margin-left:auto;"></span>
+        </div>
+      </div>
+
+      <!-- Patient counts -->
+      <div class="setup-card">
+        <div class="setup-card-label">Patients per area</div>
+        <div class="rooms-grid" role="group" aria-label="Patient counts per room">
+
+          <!-- Safety Brief — no patients -->
+          <div class="room-row" style="opacity:0.55;">
+            <div class="room-info">
+              <div class="room-name">🛡️ Safety Brief</div>
+              <div class="no-patients-label">No patient count</div>
+            </div>
+          </div>
+
+          <!-- NICU Room 1 -->
+          <div class="room-row">
+            <div class="room-info">
+              <div class="room-name">NICU Room 1</div>
+              <div class="room-dots" id="setup-dots-nicu-rm1" aria-hidden="true"></div>
+            </div>
+            <div class="room-controls">
+              <button class="count-btn" id="minus-nicu-rm1" aria-label="Decrease Room 1 patients" disabled>−</button>
+              <span class="count-display" id="count-nicu-rm1" data-value="0" aria-live="polite" aria-label="Room 1 patient count">0</span>
+              <button class="count-btn" id="plus-nicu-rm1" aria-label="Increase Room 1 patients">+</button>
+            </div>
+          </div>
+
+          <!-- NICU Room 2 -->
+          <div class="room-row">
+            <div class="room-info">
+              <div class="room-name">NICU Room 2</div>
+              <div class="room-dots" id="setup-dots-nicu-rm2" aria-hidden="true"></div>
+            </div>
+            <div class="room-controls">
+              <button class="count-btn" id="minus-nicu-rm2" aria-label="Decrease Room 2 patients" disabled>−</button>
+              <span class="count-display" id="count-nicu-rm2" data-value="0" aria-live="polite">0</span>
+              <button class="count-btn" id="plus-nicu-rm2" aria-label="Increase Room 2 patients">+</button>
+            </div>
+          </div>
+
+          <!-- Side Rooms -->
+          <div class="room-row">
+            <div class="room-info">
+              <div class="room-name">Side Rooms</div>
+              <div class="room-dots" id="setup-dots-side-rooms" aria-hidden="true"></div>
+            </div>
+            <div class="room-controls">
+              <button class="count-btn" id="minus-side-rooms" aria-label="Decrease Side Rooms patients" disabled>−</button>
+              <span class="count-display" id="count-side-rooms" data-value="0" aria-live="polite">0</span>
+              <button class="count-btn" id="plus-side-rooms" aria-label="Increase Side Rooms patients">+</button>
+            </div>
+          </div>
+
+          <!-- Expected Deliveries -->
+          <div class="room-row">
+            <div class="room-info">
+              <div class="room-name">🍼 Expected Deliveries</div>
+              <div class="room-dots" id="setup-dots-deliveries" aria-hidden="true"></div>
+            </div>
+            <div class="room-controls">
+              <button class="count-btn" id="minus-deliveries" aria-label="Decrease expected deliveries" disabled>−</button>
+              <span class="count-display" id="count-deliveries" data-value="0" aria-live="polite">0</span>
+              <button class="count-btn" id="plus-deliveries" aria-label="Increase expected deliveries">+</button>
+            </div>
+          </div>
+
+          <!-- NICU Rooms 3 & 4 -->
+          <div class="room-row">
+            <div class="room-info">
+              <div class="room-name">NICU Rooms 3 & 4</div>
+              <div class="room-dots" id="setup-dots-nicu-rm34" aria-hidden="true"></div>
+            </div>
+            <div class="room-controls">
+              <button class="count-btn" id="minus-nicu-rm34" aria-label="Decrease Rooms 3&4 patients" disabled>−</button>
+              <span class="count-display" id="count-nicu-rm34" data-value="0" aria-live="polite">0</span>
+              <button class="count-btn" id="plus-nicu-rm34" aria-label="Increase Rooms 3&4 patients">+</button>
+            </div>
+          </div>
+
+          <!-- Other — no patients -->
+          <div class="room-row" style="opacity:0.55;">
+            <div class="room-info">
+              <div class="room-name">⚡ Other / Interruption</div>
+              <div class="no-patients-label">No patient count</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Begin button -->
+      <button id="btn-begin" class="begin-btn">
+        <span>▶</span> Begin Handover
+      </button>
+
+      <!-- Previous sessions -->
+      <div class="setup-card">
+        <div class="prev-sessions-header">
+          <h3>Previous Sessions</h3>
+        </div>
+        <div id="prev-sessions-list" class="session-list"></div>
+      </div>
+
+    </div>
+  </div><!-- /setup-screen -->
+
+
+  <!-- ============================================================
+       HUD SCREEN
+  ============================================================ -->
+  <div id="hud-screen" class="screen" role="main" aria-label="Live handover HUD">
+
+    <!-- Top bar -->
+    <header class="hud-topbar">
+      <div class="hud-brand brand">
+        <div class="brand-icon" aria-hidden="true">🛡️</div>
+        <span class="brand-name">SafeShift</span>
+      </div>
+
+      <span id="hud-shift-badge" class="hud-shift-badge tag-am" aria-live="polite">☀️ Morning</span>
+
+      <span id="hud-live-clock" class="hud-live-clock" aria-label="Current time" aria-live="off">--:--</span>
+
+      <span class="hud-total-time" id="hud-total-time" aria-label="Total elapsed time" aria-live="off">00:00</span>
+      <span class="hud-total-label">total</span>
+
+      <div class="hud-actions">
+        <button class="theme-toggle-btn" id="theme-toggle-hud" aria-label="Toggle day/night mode" style="margin-right: 4px;">
+          <span class="theme-icon">☀️</span>
+        </button>
+        <button class="hud-interrupt-btn" id="btn-interrupt" aria-label="Log an interruption">
+          <span>⚡</span><span class="btn-label">Interrupt</span>
+        </button>
+        <button class="hud-btn hud-btn-pause" id="btn-pause" aria-pressed="false" aria-label="Pause handover">
+          <span>⏸</span><span class="btn-label">Pause</span>
+        </button>
+        <button class="hud-btn hud-btn-end" id="btn-end-session" aria-label="End session and go to summary">
+          <span>⏹</span><span class="btn-label">End</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main body -->
+    <div class="hud-body">
+
+      <!-- Left: grid of section tiles -->
+      <div class="tiles-panel" id="section-tiles-grid" role="grid" aria-label="Sections">
+        <!-- Rendered by JS -->
+      </div>
+
+      <!-- Center (Large Screens): analogue clock dashboard -->
+      <div class="hud-clock-panel" id="hud-clock-panel" aria-label="Live analogue clock pie chart">
+        <div class="clock-container" id="clock-container">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- Right: detail and tips panel -->
+      <aside class="hud-right-panel">
+        
+        <div class="detail-panel" id="detail-panel" aria-live="polite">
+          <!-- Rendered by JS -->
+        </div>
+
+        <div class="tips-panel" aria-label="Handover tips">
+          <div class="tips-header">
+            <div class="tips-header-row">
+              <span class="tips-title">Handover Tips</span>
+              <span class="tips-framework" id="tips-framework"></span>
+            </div>
+            <div class="tips-section-name" id="tips-section-name">Tap a section to see tips</div>
+          </div>
+          <div class="tips-body" id="tips-body"></div>
+        </div>
+
+      </aside>
+
+      <!-- Pause overlay -->
+      <div class="paused-overlay" id="pause-overlay" role="status" aria-live="assertive">
+        <div class="paused-label">⏸ PAUSED</div>
+        <div class="paused-sub">Timer is paused — clock frozen</div>
+        <button class="paused-resume-btn" id="btn-resume-pause">▶ Resume Handover</button>
+      </div>
+
+    </div><!-- /hud-body -->
+
+    <!-- Mobile Sticky HUD Active Bar -->
+    <div class="mobile-active-bar" id="mobile-active-bar" aria-live="polite"></div>
+
+  </div><!-- /hud-screen -->
+
+
+  <!-- ============================================================
+       SUMMARY SCREEN
+  ============================================================ -->
+  <div id="summary-screen" class="screen" role="main" aria-label="Handover summary">
+
+    <div class="top-bar">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">🛡️</div>
+        <div>
+          <div class="brand-name">SafeShift</div>
+          <div class="brand-sub">Session Summary</div>
+        </div>
+      </div>
+      <button class="theme-toggle-btn" id="theme-toggle-summary" aria-label="Toggle day/night mode">
+        <span class="theme-icon">☀️</span>
+      </button>
+    </div>
+
+    <div class="summary-content">
+
+      <!-- Hero stats -->
+      <section class="summary-hero" aria-label="Session overview">
+        <div class="summary-hero-title">Handover Complete</div>
+        <div class="summary-stats-row">
+          <div class="summary-stat">
+            <div class="summary-stat-value" id="summary-total-time">—</div>
+            <div class="summary-stat-label">Total duration</div>
+          </div>
+          <div class="summary-stat">
+            <div class="summary-stat-value" id="summary-start-time">—</div>
+            <div class="summary-stat-label">Started</div>
+          </div>
+          <div class="summary-stat">
+            <div class="summary-stat-value" id="summary-end-time">—</div>
+            <div class="summary-stat-label">Ended</div>
+          </div>
+          <div class="summary-stat">
+            <div class="summary-stat-value" id="summary-total-patients">—</div>
+            <div class="summary-stat-label">Total patients</div>
+          </div>
+          <div class="summary-stat">
+            <div class="summary-stat-value" id="summary-avg-per-pt">—</div>
+            <div class="summary-stat-label">Avg per patient</div>
+          </div>
+          <div class="summary-stat">
+            <div class="summary-stat-value" id="summary-interruptions">0</div>
+            <div class="summary-stat-label">Interruptions</div>
+          </div>
+          <div class="summary-stat">
+            <div class="summary-stat-value" id="summary-late-start" style="color:var(--accent);">—</div>
+            <div class="summary-stat-label">Start punctuality</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section breakdown -->
+      <section aria-label="Section breakdown">
+        <div class="section-table">
+          <div class="section-table-header">
+            <span>Section</span>
+            <span>Time</span>
+            <span>Per pt</span>
+            <span>%</span>
+          </div>
+          <div id="section-table-body"></div>
+        </div>
+      </section>
+
+      <!-- Closing safety pause -->
+      <section class="safety-pause-card" aria-label="Closing safety pause">
+        <div class="safety-pause-title">
+          🏁 Closing Safety Pause
+        </div>
+        <div class="safety-checklist">
+          <div class="safety-check-item">
+            <span class="safety-check-icon">👶</span>
+            <span>Sickest baby named — plan and escalation threshold clear?</span>
+          </div>
+          <div class="safety-check-item">
+            <span class="safety-check-icon">✅</span>
+            <span>Most time-critical task assigned with a named owner?</span>
+          </div>
+          <div class="safety-check-item">
+            <span class="safety-check-icon">📊</span>
+            <span>Outstanding results — bloods, cultures, imaging — someone chasing?</span>
+          </div>
+          <div class="safety-check-item">
+            <span class="safety-check-icon">👪</span>
+            <span>Family communication — anyone expected in who needs a senior doctor?</span>
+          </div>
+          <div class="safety-check-item">
+            <span class="safety-check-icon">❓</span>
+            <span>Anyone in the incoming team uncertain about any patient?</span>
+          </div>
+          <div class="safety-check-item">
+            <span class="safety-check-icon">📞</span>
+            <span>Named escalation lead for the shift — consultant aware of concerns?</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Export -->
+      <section class="export-card" aria-label="Export session data">
+        <div class="export-title">Export QI Data</div>
+        <div class="export-btns">
+          <button class="export-btn export-btn-email" id="export-email">
+            ✉️ Send via Email
+          </button>
+          <button class="export-btn export-btn-copy" id="export-copy-text">
+            📋 Copy Report
+          </button>
+          <button class="export-btn export-btn-csv" id="export-copy-csv">
+            📊 Copy CSV Row
+          </button>
+          <button class="export-btn export-btn-json" id="export-json">
+            ⬇ Download JSON
+          </button>
+        </div>
+        <div class="export-success" id="export-success" style="opacity:0; transition:opacity 0.3s;"></div>
+      </section>
+
+      <!-- New session -->
+      <button class="new-session-btn" id="btn-new-session">
+        ↩ Start New Handover Session
+      </button>
+
+    </div>
+  </div><!-- /summary-screen -->
+
+
+  <!-- Toast notification -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
