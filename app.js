@@ -1,5 +1,8 @@
 'use strict';
 
+const APP_VERSION = '1.3.0'; // edit-start-time feature
+
+
 // ============================================================
 // SECTION DEFINITIONS WITH CONTEXTUAL TIPS
 // ============================================================
@@ -390,6 +393,111 @@ function logInterruption() {
   if (el) el.textContent = STATE.interruptions;
 }
 
+// ============================================================
+// EDIT START TIME (Retrospective)
+// ============================================================
+
+let _editStartSectionIdx = null; // which section is being edited
+
+function openEditStartModal(sectionIdx) {
+  const sec = STATE.sections[sectionIdx];
+  if (!sec || !sec.firstActivated) return; // can't edit a pristine section
+
+  _editStartSectionIdx = sectionIdx;
+
+  const modal = document.getElementById('edit-start-modal');
+  const input = document.getElementById('edit-start-time-input');
+  const subtitle = document.getElementById('edit-start-subtitle');
+  const hint = document.getElementById('edit-start-hint');
+  if (!modal || !input) return;
+
+  // First interval's start (wall clock)
+  const firstStart = sec.intervals.length > 0 ? sec.intervals[0].start
+    : (sec.isActive && sec.activeStart ? sec.activeStart : sec.firstActivated);
+
+  const d = new Date(firstStart);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  input.value = `${hh}:${mm}`;
+
+  subtitle.textContent = sec.def.name;
+  hint.textContent = `Current: ${hh}:${mm} — tap time to change`;
+
+  modal.hidden = false;
+  // Focus input after animation frame so iOS keyboard appears
+  requestAnimationFrame(() => input.focus());
+}
+
+function applyEditedStartTime() {
+  const idx = _editStartSectionIdx;
+  if (idx === null) return;
+
+  const sec = STATE.sections[idx];
+  const input = document.getElementById('edit-start-time-input');
+  if (!sec || !input) return;
+
+  const val = input.value; // 'HH:MM'
+  if (!val) { closeEditStartModal(); return; }
+
+  // Build a Date for the new start, using today's date as base
+  const [newH, newM] = val.split(':').map(Number);
+
+  // Use the original start date as the calendar date (handles handovers that
+  // might span midnight, though unlikely in NICU context)
+  const originalFirstStart = sec.intervals.length > 0 ? sec.intervals[0].start
+    : (sec.isActive && sec.activeStart ? sec.activeStart : sec.firstActivated);
+  const base = new Date(originalFirstStart);
+  base.setHours(newH, newM, 0, 0);
+  const newStartMs = base.getTime();
+
+  // Sanity: new start must be in the past and not after the first interval's end
+  if (newStartMs > Date.now()) {
+    showToast('⚠️ Start time cannot be in the future');
+    return;
+  }
+
+  if (sec.intervals.length > 0) {
+    const firstInterval = sec.intervals[0];
+    if (newStartMs >= firstInterval.end) {
+      showToast('⚠️ Start time must be before the first interval ended');
+      return;
+    }
+    // Adjust the first interval
+    const oldDuration = firstInterval.durationMs;
+    const newDuration = Math.max(0, firstInterval.end - newStartMs);
+    const delta = newDuration - oldDuration;
+    firstInterval.start = newStartMs;
+    firstInterval.durationMs = newDuration;
+    sec.accumulatedMs = Math.max(0, sec.accumulatedMs + delta);
+  }
+
+  // If this section is currently active (no first interval yet recorded),
+  // adjust activeStart directly
+  if (sec.intervals.length === 0 && sec.isActive && sec.activeStart !== null) {
+    sec.activeStart = newStartMs;
+  }
+
+  // Update firstActivated
+  sec.firstActivated = newStartMs;
+
+  // If this section was the first one ever activated, update the global start
+  if (sec.firstActivated <= (STATE.startTimestamp || Infinity)) {
+    STATE.startTimestamp = newStartMs;
+    STATE.startWallTime = base.toISOString();
+  }
+
+  closeEditStartModal();
+  renderHUD();
+  showToast(`✏️ ${sec.def.name} start time updated to ${val}`);
+  _editStartSectionIdx = null;
+}
+
+function closeEditStartModal() {
+  const modal = document.getElementById('edit-start-modal');
+  if (modal) modal.hidden = true;
+  _editStartSectionIdx = null;
+}
+
 function endHandover() {
   const now = Date.now();
 
@@ -756,11 +864,39 @@ function renderSectionTiles() {
       </div>
       ${dotsHtml}
       <div class="tile-time${color && isActive ? ' ' + color : ''}" id="tile-timer-${sec.def.id}">${visited || isActive ? fmtMs(elapsed) : '—'}</div>
-      <div class="tile-perpt" id="tile-perpt-${sec.def.id}">${sec.patientCount > 0 && elapsed > 0 ? `~${fmtMs(elapsed / sec.patientCount)}/pt` : ''}</div>`;
+      <div class="tile-perpt" id="tile-perpt-${sec.def.id}">${sec.patientCount > 0 && elapsed > 0 ? `~${fmtMs(elapsed / sec.patientCount)}/pt` : ''}</div>
+      ${visited ? '<span class="tile-edit-hint" aria-hidden="true">hold to edit start</span>' : ''}`;
 
-    // Tile click → activate section
+    // Long-press → open edit start time modal
+    let longPressTimer = null;
+    let longPressTriggered = false;
+    const LONG_PRESS_MS = 500;
+
+    function startLongPress(e) {
+      if (e.target.closest('.tile-dot')) return;
+      longPressTriggered = false;
+      longPressTimer = setTimeout(() => {
+        const sec = STATE.sections[i];
+        if (sec && sec.firstActivated !== null) {
+          longPressTriggered = true;
+          openEditStartModal(i);
+        }
+      }, LONG_PRESS_MS);
+    }
+    function cancelLongPress() {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+
+    tile.addEventListener('pointerdown', startLongPress);
+    tile.addEventListener('pointerup',   cancelLongPress);
+    tile.addEventListener('pointerleave', cancelLongPress);
+    tile.addEventListener('pointercancel', cancelLongPress);
+
+    // Tile click → activate section (suppress if long-press fired)
     tile.addEventListener('click', e => {
       if (e.target.closest('.tile-dot')) return;
+      if (longPressTriggered) { longPressTriggered = false; return; }
       activateSection(i);
     });
     tile.addEventListener('keydown', e => {
@@ -1061,7 +1197,7 @@ function buildTextReport() {
     });
   }
 
-  lines.push('', `Submitted: ${new Date().toISOString()}`, 'SafeShift v1 — NICU Handover QI Tool');
+  lines.push('', `Submitted: ${new Date().toISOString()}`, `SafeShift v${APP_VERSION} — NICU Handover QI Tool`);
   return lines.join('\n');
 }
 
@@ -1124,7 +1260,7 @@ function buildJSON() {
       lapCount: sec.intervals.length,
     })),
     exportedAt: new Date().toISOString(),
-    tool: 'SafeShift v1',
+    tool: `SafeShift v${APP_VERSION}`,
   }, null, 2);
 }
 
@@ -1314,6 +1450,8 @@ function showToast(msg) {
 // ============================================================
 
 function init() {
+  console.info(`SafeShift v${APP_VERSION} — NICU Handover QI Tool`);
+
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
     
@@ -1391,6 +1529,17 @@ function init() {
   });
   document.getElementById('btn-new-session')?.addEventListener('click', () => {
     stopTick(); releaseWakeLock(); renderSetup(); showScreen('setup-screen');
+  });
+
+  // Edit start time modal
+  document.getElementById('edit-start-confirm')?.addEventListener('click', applyEditedStartTime);
+  document.getElementById('edit-start-cancel')?.addEventListener('click', closeEditStartModal);
+  document.getElementById('edit-start-modal')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeEditStartModal(); // click backdrop to dismiss
+  });
+  document.getElementById('edit-start-time-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') applyEditedStartTime();
+    if (e.key === 'Escape') closeEditStartModal();
   });
 
   // PWA install

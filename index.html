@@ -389,6 +389,30 @@
   </div><!-- /summary-screen -->
 
 
+  <!-- ============================================================
+       EDIT START TIME MODAL
+  ============================================================ -->
+  <div class="modal-backdrop" id="edit-start-modal" role="dialog" aria-modal="true" aria-labelledby="edit-start-title" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-icon">🕐</span>
+        <div>
+          <div class="modal-title" id="edit-start-title">Edit Start Time</div>
+          <div class="modal-subtitle" id="edit-start-subtitle">Adjust when this section began</div>
+        </div>
+      </div>
+      <div class="modal-body">
+        <label class="modal-label" for="edit-start-time-input">Start time</label>
+        <input type="time" id="edit-start-time-input" class="modal-time-input" aria-label="Section start time" />
+        <div class="modal-hint" id="edit-start-hint"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-cancel" id="edit-start-cancel">Cancel</button>
+        <button class="modal-btn modal-btn-confirm" id="edit-start-confirm">✓ Apply</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast notification -->
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

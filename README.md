@@ -1,4 +1,4 @@
-# SafeShift — NICU Handover Timer, Cognitive Aid & QI Tool
+# SafeShift — NICU Handover, Cognitive Aid & QI Tool
 
 [![PWA Status](https://img.shields.io/badge/PWA-Supported-brightgreen.svg)](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps)
 [![Language](https://img.shields.io/badge/Language-Vanilla%20JS%20%2F%20HTML%20%2F%20CSS-blue.svg)](#)
