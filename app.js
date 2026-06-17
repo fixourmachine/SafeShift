@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = '1.3.0'; // edit-start-time feature
+const APP_VERSION = '1.3.1'; // fix: edit-start-time trims overlapping sections
 
 
 // ============================================================
@@ -480,10 +480,44 @@ function applyEditedStartTime() {
   // Update firstActivated
   sec.firstActivated = newStartMs;
 
-  // If this section was the first one ever activated, update the global start
-  if (sec.firstActivated <= (STATE.startTimestamp || Infinity)) {
-    STATE.startTimestamp = newStartMs;
-    STATE.startWallTime = base.toISOString();
+  // ── Trim any other section whose interval overlaps with newStartMs ──
+  // If another section has an interval whose end > newStartMs (i.e. it was
+  // still "running" when the edited section now claims to have started), trim
+  // that interval's end back to newStartMs so there is no overlap.
+  STATE.sections.forEach((otherSec, otherIdx) => {
+    if (otherIdx === idx) return; // skip the section we just edited
+
+    // Trim closed intervals that straddle the new start time
+    otherSec.intervals.forEach(interval => {
+      if (interval.end > newStartMs && interval.start < newStartMs) {
+        const oldDuration = interval.durationMs;
+        const newDuration = Math.max(0, newStartMs - interval.start);
+        otherSec.accumulatedMs = Math.max(0, otherSec.accumulatedMs - (oldDuration - newDuration));
+        interval.end = newStartMs;
+        interval.durationMs = newDuration;
+      }
+    });
+
+    // If the other section is currently active and its activeStart is before
+    // newStartMs, trim its activeStart forward to newStartMs
+    if (otherSec.isActive && otherSec.activeStart !== null && otherSec.activeStart < newStartMs) {
+      otherSec.activeStart = newStartMs;
+      otherSec.pausedMsAtStart = getCurrentPausedMs();
+    }
+  });
+
+  // ── Recompute the global start timestamp ──
+  // Derive startTimestamp as the minimum firstActivated across all sections,
+  // so this correctly handles both rolling back (earlier) and forward (later).
+  let minActivated = Infinity;
+  STATE.sections.forEach(s => {
+    if (s.firstActivated !== null && s.firstActivated < minActivated) {
+      minActivated = s.firstActivated;
+    }
+  });
+  if (minActivated !== Infinity) {
+    STATE.startTimestamp = minActivated;
+    STATE.startWallTime = new Date(minActivated).toISOString();
   }
 
   closeEditStartModal();
